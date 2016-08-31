@@ -83,9 +83,14 @@ bot.on('message',msg=>{
             }
         }; break;
         case 3: {
-            console.log('STEP3:',msg,Choices_per_user[msg.chat.id].periods)
             if (Choices_per_user[msg.chat.id].periods.has(msg.text.toUpperCase())) {
                 return chose_period(msg.chat.id, msg.text);
+            }
+            return chose_event(msg.chat.id, msg.text);
+        }
+        case 4: {
+            if (Choices_per_user[msg.chat.id].events.has(msg.text.toUpperCase())) {
+                return chose_event(msg.chat.id, msg.text);
             }
         }
         default: bot.sendMessage(msg.chat.id, default_message);
@@ -187,7 +192,8 @@ function find_bets (id, game_num) {
             regrouped_odds[odd.period][odd.event].push({
                 bookmaker: odd.betting_company,
                 allowance: odd.allowance,
-                value: odd.value
+                value: odd.value,
+                url: odd.source_url
             });
         };
         console.log(regrouped_odds);
@@ -208,13 +214,13 @@ function find_bets (id, game_num) {
         Choices_per_user[id].step = 2;
         Choices_per_user[id].game = the_game;
         Choices_per_user[id].periods = periods;
-        Choices_per_user[id].events = sorted_events;
 
         bot.sendMessage(id, message);
     },()=>{
         bot.sendMessage(id, 'Oops... There are some tech difficulties  :(');
     });
 };
+
 function chose_period (id, period) {
     console.log('CHOSE PERIOD',period);
     if (!Choices_per_user[id].periods.has(period.toUpperCase())) return bot.sendMessage(id,'I can\'t identify the period.\nPlease enter the right one.');
@@ -225,8 +231,9 @@ function chose_period (id, period) {
     message += game_description(Choices_per_user[id].game) + '\n';
     message += '[' + period + '] Period (Allowance/Value)\n';
     let sorted_events = Object.keys(Choices_per_user[id].game.odds[period]).sort();
+    let events = new Set();
     for (let event of sorted_events) {
-        console.log(Choices_per_user[id].game.odds[period][event]);
+        events.add(event);
         message += event + ':';
         for (let odd of Choices_per_user[id].game.odds[period][event]) {
             message += ' (' + odd.allowance + '/' + odd.value + ')';
@@ -236,6 +243,28 @@ function chose_period (id, period) {
 
     Choices_per_user[id].step = 3;
     Choices_per_user[id].period = period;
+    Choices_per_user[id].events = events;
 
     bot.sendMessage(id, message);
 };
+
+function chose_event (id, event) {
+    console.log('CHOSE EVENT',event);
+    if (!Choices_per_user[id].game.odds[Choices_per_user[id].period][event.toUpperCase()]) return bot.sendMessage(id,'I can\'t identify the event.\nPlease enter the right one.');
+    event = event.toUpperCase();
+
+    let message = '';
+
+    message += game_description(Choices_per_user[id].game) + '\n';
+    message += '[' + Choices_per_user[id].period + '] Period. [' + event + '] Event. (Allowance/Value)\n';
+
+    for (let odd of Choices_per_user[id].game.odds[Choices_per_user[id].period][event]) {
+        console.log(JSON.stringify(odd,undefined,2));
+        message += odd.bookmaker + ' (' + odd.allowance + '/' + odd.value + ') ' + odd.url + '\n';
+    }
+
+    Choices_per_user[id].step = 4;
+    Choices_per_user[id].event = event;
+
+    bot.sendMessage(id, message);
+}
