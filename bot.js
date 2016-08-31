@@ -30,7 +30,7 @@ const game_description = game => {
         switch (game.sport) {
             case "football": description+='⚽ '; break;
             case "basketball": description+='🏀 '; break;
-            case "hockey": description+='🏒 '; break;
+            case "ice hockey": description+='🏒 '; break;
             default: description+='('+game.sport+') ';
         };
     };
@@ -51,35 +51,52 @@ const Choices_per_user = {};
 const Games_per_user = {};
 const add_game2Games = (id,game) => Games_per_user[id].push(game.data_text)-1;
 
-const Game_per_user = {};
-
 bot.on('message',msg=>{
     console.log('MSG:',msg);
     if (!Choices_per_user[msg.chat.id]) Choices_per_user[msg.chat.id] = {step:0};
 
     const match_games = msg.text.match(/^\/games\s?(.*)/);
     if (match_games) {
-        Choices_per_user[msg.chat.id].step = 1;
         return find_games(msg.chat.id, match_games[1]);
     };
     const match_d = msg.text.match(/^\/(\d+)/);
     if ((Choices_per_user[msg.chat.id].step == 1 || Choices_per_user[msg.chat.id].step == 2)
         && match_d) {
-        Choices_per_user[msg.chat.id].step = 2;
         return find_bets(msg.chat.id, match_d[1]);
     };
 
+    const default_message = 'please type /games for games search.\nAdd team name, to narrow your search.\nAdd +X and -X for game start time limit in hours.\nExamples:\n  /games - to find nearest.\n  /games FC -2 - games started in last 2 hours, with teams "FC" named like "Saint Louis FC"';
     switch (Choices_per_user[msg.chat.id].step) {
-        case 1: return find_bets(msg.chat.id, msg.text);
-        default: bot.sendMessage(msg.chat.id, 'please type /games for games search.\nAdd team name, to narrow your search.\nAdd +X and -X for game start time limit in hours.\nExamples:\n  /games - to find nearest.\n  /games FC -2 - games started in last 2 hours, with teams "FC" named like "Saint Louis FC"');
+        case 0: {
+            bot.sendMessage(msg.chat.id, default_message);
+        }; break;
+        case 1: {
+            return find_bets(msg.chat.id, msg.text);
+        }; break;
+        case 2: {
+            if (Games_per_user[msg.chat.id][msg.text]) {
+                return find_bets(msg.chat.id, msg.text);
+            }
+            const commands = msg.text.split(' ');
+            if (commands.length == 1) {
+                return chose_period(msg.chat.id, msg.text);
+            }
+        }; break;
+        case 3: {
+            console.log('STEP3:',msg,Choices_per_user[msg.chat.id].periods)
+            if (Choices_per_user[msg.chat.id].periods.has(msg.text.toUpperCase())) {
+                return chose_period(msg.chat.id, msg.text);
+            }
+        }
+        default: bot.sendMessage(msg.chat.id, default_message);
     };    
 });
 
 function find_games (id, query) {
+    console.log('FIND GAMES:',query);
     const request_json = {token:settings.api_token};
     request_json.select = {odds:false};
     request_json.filter = {};
-    console.log('text_query',query);
     let prev_period = query.match(/-(\d{1,2})h?/);
     if (prev_period) {
         query = query.slice(0,prev_period.index) +query.slice(prev_period.index+prev_period[0].length);
@@ -94,10 +111,6 @@ function find_games (id, query) {
     request_json.filter.text_query = query.trim();
     console.log('request_json', request_json);
 
-    Choices_per_user[id] = {
-        query:request_json.filter.text_query,
-        step:1
-    };
     console.log('CHOICES',Choices_per_user);
 
     request_promise(request_json)
@@ -120,6 +133,10 @@ function find_games (id, query) {
         }
         message += 'Please enter the game number or click on it.';
 
+        Choices_per_user[id] = {
+            query:request_json.filter.text_query,
+            step:1
+        };
         bot.sendMessage(id, message);
         console.log('GAMES',Games_per_user);
     },()=>{
@@ -129,7 +146,7 @@ function find_games (id, query) {
 
 
 function find_bets (id, game_num) {
-    console.log('/',game_num);
+    console.log('FIND BETS:',game_num);
     console.log(Games_per_user[id])
     if (!Games_per_user[id][+game_num]) return bot.sendMessage(id,'I can\'t identify this game.\n. Please enter the right number.');
 
@@ -154,35 +171,71 @@ function find_bets (id, game_num) {
             };
         };
         message += game_description(the_game) + '\n';
-
         const regrouped_odds = {};
-        console.log(the_game.odds)
+        const periods = new Set();
+        const events = new Set();
+        // console.log(the_game.odds)
         for (let odd of the_game.odds) {
-            if (!regrouped_odds[odd.period]) regrouped_odds[odd.period]={};
-            if (!regrouped_odds[odd.period][odd.event]) regrouped_odds[odd.period][odd.event]=[];
+            if (!regrouped_odds[odd.period]) {
+                regrouped_odds[odd.period]={};
+                periods.add(odd.period);
+            }
+            if (!regrouped_odds[odd.period][odd.event]) {
+                regrouped_odds[odd.period][odd.event]=[];
+                events.add(odd.event);
+            }
             regrouped_odds[odd.period][odd.event].push({
                 bookmaker: odd.betting_company,
                 allowance: odd.allowance,
                 value: odd.value
             });
         };
-        console.log(regrouped_odds)
+        console.log(regrouped_odds);
         the_game.odds = regrouped_odds;
-        Game_per_user[id] = the_game;
-        message += 'Periods availible:\n';
-        for (let period in the_game.odds) {
-            message += period + '[/' + period.replace(/\//,'') + ']';
-            switch (period) {
-                case 'F': message+=' - Full game'; break;
-                case '1/2': message+=' - First time'; break;
-                case '2/2': message+=' - Second time'; break;
-            }
-            message += '\n';
+
+        message += 'Bets availible for:\n'
+        message += ' Periods: ';
+        periods.forEach(period => message+=' '+period);
+        message += '\n';
+        message += ' Events:';
+        const sorted_events = Array.from(events).sort();
+        for (let event of sorted_events) {
+            message+=' '+event;
         }
+        message += '\n';
         message += 'Please, enter the period.';
+
+        Choices_per_user[id].step = 2;
+        Choices_per_user[id].game = the_game;
+        Choices_per_user[id].periods = periods;
+        Choices_per_user[id].events = sorted_events;
 
         bot.sendMessage(id, message);
     },()=>{
         bot.sendMessage(id, 'Oops... There are some tech difficulties  :(');
     });
+};
+function chose_period (id, period) {
+    console.log('CHOSE PERIOD',period);
+    if (!Choices_per_user[id].periods.has(period.toUpperCase())) return bot.sendMessage(id,'I can\'t identify the period.\nPlease enter the right one.');
+    period = period.toUpperCase();
+
+    let message = '';
+
+    message += game_description(Choices_per_user[id].game) + '\n';
+    message += '[' + period + '] Period (Allowance/Value)\n';
+    let sorted_events = Object.keys(Choices_per_user[id].game.odds[period]).sort();
+    for (let event of sorted_events) {
+        console.log(Choices_per_user[id].game.odds[period][event]);
+        message += event + ':';
+        for (let odd of Choices_per_user[id].game.odds[period][event]) {
+            message += ' (' + odd.allowance + '/' + odd.value + ')';
+        };
+        message += '\n';
+    };
+
+    Choices_per_user[id].step = 3;
+    Choices_per_user[id].period = period;
+
+    bot.sendMessage(id, message);
 };
