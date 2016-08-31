@@ -62,14 +62,15 @@ bot.on('message',msg=>{
         Choices_per_user[msg.chat.id].step = 1;
         return find_games(msg.chat.id, match_games[1]);
     };
-    const match_b_ = msg.text.match(/^\/b_?(.+)/);
-    if (match_b_) {
+    const match_d = msg.text.match(/^\/(\d+)/);
+    if ((Choices_per_user[msg.chat.id].step == 1 || Choices_per_user[msg.chat.id].step == 2)
+        && match_d) {
         Choices_per_user[msg.chat.id].step = 2;
-        return find_bet(msg.chat.id, match_b_[1]);
+        return find_bets(msg.chat.id, match_d[1]);
     };
 
     switch (Choices_per_user[msg.chat.id].step) {
-        case 1: return find_bet(msg.chat.id, msg.text);
+        case 1: return find_bets(msg.chat.id, msg.text);
         default: bot.sendMessage(msg.chat.id, 'please type /games for games search.\nAdd team name, to narrow your search.\nAdd +X and -X for game start time limit in hours.\nExamples:\n  /games - to find nearest.\n  /games FC -2 - games started in last 2 hours, with teams "FC" named like "Saint Louis FC"');
     };    
 });
@@ -105,22 +106,20 @@ function find_games (id, query) {
         
         Games_per_user[id] = [];
 
-        let message = '';
         if (body.games.length == 0) {
-            message += 'Sorry, i found no games';
-        } else if (body.games.length == 1) {
-            message +=  game_description(body.games[0]) + '\n';
-            message += 'bets for this game: '+'/b_'+add_game2Games(id,body.games[0]);
-        } else if (body.games.length > 1) {
+            return  bot.sendMessage(id, 'Sorry, i found no games');
+        }
+
+        let message = '';
+        if (body.games.length > 1) {
             message += 'I found several games:\n';
+        }
 
-            for (let game of body.games) {
-                message += game_description(game) + '\n';
-                message += 'bets for this game: ' + '/b_' + add_game2Games(id,game) + '\n\n';
-            }
-            message += 'Please chose the game';
+        for (let game of body.games) {
+            message += '/' + add_game2Games(id,game) + ' ' + game_description(game) + '\n\n';
+        }
+        message += 'Please enter the game number or click on it.';
 
-        };
         bot.sendMessage(id, message);
         console.log('GAMES',Games_per_user);
     },()=>{
@@ -129,11 +128,10 @@ function find_games (id, query) {
 };
 
 
-function find_bet (id, game_num) {
-    console.log('/b_',game_num);
+function find_bets (id, game_num) {
+    console.log('/',game_num);
     console.log(Games_per_user[id])
-    if (game_num=='') return bot.sendMessage(id,'You should chose some game');
-    if (!Games_per_user[id][+game_num]) return bot.sendMessage(id,'I can\'t identify this game.\nPlease search for games again.');
+    if (!Games_per_user[id][+game_num]) return bot.sendMessage(id,'I can\'t identify this game.\n. Please enter the right number.');
 
     const request_json = {token:settings.api_token};
     request_json.select = {odds:true};
@@ -171,13 +169,17 @@ function find_bet (id, game_num) {
         console.log(regrouped_odds)
         the_game.odds = regrouped_odds;
         Game_per_user[id] = the_game;
-
+        message += 'Periods availible:\n';
         for (let period in the_game.odds) {
-            message += 'Period ' + period + ': /p_' + period.replace(/\//,'') + '\n';
-            for (let event in the_game.odds[period]) {
-                message += '    ' + event + ': /e_' + period.replace(/\//,'') + '_' + event + '\n';
+            message += period + '[/' + period.replace(/\//,'') + ']';
+            switch (period) {
+                case 'F': message+=' - Full game'; break;
+                case '1/2': message+=' - First time'; break;
+                case '2/2': message+=' - Second time'; break;
             }
+            message += '\n';
         }
+        message += 'Please, enter the period.';
 
         bot.sendMessage(id, message);
     },()=>{
