@@ -52,7 +52,7 @@ const Games_per_user = {};
 const add_game2Games = (id,game) => Games_per_user[id].push(game.data_text)-1;
 
 bot.on('message',msg=>{
-    console.log('MSG:',msg);
+    console.log(new Date(),msg.chat.id+': '+msg.text);
     if (!Choices_per_user[msg.chat.id]) Choices_per_user[msg.chat.id] = {step:0};
 
     const match_games = msg.text.match(/^\/games\s?(.*)/);
@@ -98,7 +98,7 @@ bot.on('message',msg=>{
 });
 
 function find_games (id, query) {
-    console.log('FIND GAMES:',query);
+    // console.log('FIND GAMES:',query);
     const request_json = {token:settings.api_token};
     request_json.select = {odds:false};
     request_json.filter = {};
@@ -110,49 +110,41 @@ function find_games (id, query) {
     if (next_period) {
         query = query.slice(0,next_period.index) +query.slice(next_period.index+next_period[0].length);
     };
-    console.log('prev_period,next_period',prev_period,next_period);
     request_json.filter.next_period = (next_period)?+next_period[1]:1;
     request_json.filter.prev_period = (prev_period)?+prev_period[1]:0;
     request_json.filter.text_query = query.trim();
-    console.log('request_json', request_json);
-
-    console.log('CHOICES',Choices_per_user);
 
     request_promise(request_json)
-    .then((body)=>{
-        console.log('/games api resond:',body);
-        
-        Games_per_user[id] = [];
+        .then((body)=>{
+            Games_per_user[id] = [];
 
-        if (body.games.length == 0) {
-            return  bot.sendMessage(id, 'Sorry, i found no games');
-        }
+            if (body.games.length == 0) {
+                return  bot.sendMessage(id, 'Sorry, i found no games');
+            }
 
-        let message = '';
-        if (body.games.length > 1) {
-            message += 'I found several games:\n';
-        }
+            let message = '';
+            if (body.games.length > 1) {
+                message += 'I found several games:\n';
+            }
 
-        for (let game of body.games) {
-            message += '/' + add_game2Games(id,game) + ' ' + game_description(game) + '\n\n';
-        }
-        message += 'Please enter the game number or click on it.';
+            for (let game of body.games) {
+                message += '/' + add_game2Games(id,game) + ' ' + game_description(game) + '\n\n';
+            }
+            message += 'Please enter the game number or click on it.';
 
-        Choices_per_user[id] = {
-            query:request_json.filter.text_query,
-            step:1
-        };
-        bot.sendMessage(id, message);
-        console.log('GAMES',Games_per_user);
-    },()=>{
-        bot.sendMessage(id, 'Oops... There are some tech difficulties  :(');
-    });
+            Choices_per_user[id] = {
+                query:request_json.filter.text_query,
+                step:1
+            };
+            bot.sendMessage(id, message);
+        },()=>{
+            bot.sendMessage(id, 'Oops... There are some tech difficulties  :(');
+        });
 };
 
 
 function find_bets (id, game_num) {
-    console.log('FIND BETS:',game_num);
-    console.log(Games_per_user[id])
+    // console.log('FIND BETS:',game_num);
     if (!Games_per_user[id][+game_num]) return bot.sendMessage(id,'I can\'t identify this game.\n. Please enter the right number.');
 
     const request_json = {token:settings.api_token};
@@ -161,68 +153,66 @@ function find_bets (id, game_num) {
     request_json.filter.text_query = Games_per_user[id][game_num];
 
     request_promise(request_json)
-    .then((body)=>{
-        let the_game = body.games[0];
-        let message = '';
-        if (body.games.length == 0) {
-            message += 'Sorry, i didn\tt found that game:\n' + request_json.filter.text_query;
-            return bot.sendMessage(id, message);
-        } else if (body.games.length > 1) {
-            for (let i in body.games) {
-                if (body.games[i].data_text == request_json.filter.text_query) {
-                    if (i != 0) the_game = body.games[i];
-                    break;
-                }
+        .then((body)=>{
+            let the_game = body.games[0];
+            let message = '';
+            if (body.games.length == 0) {
+                message += 'Sorry, i didn\tt found that game:\n' + request_json.filter.text_query;
+                return bot.sendMessage(id, message);
+            } else if (body.games.length > 1) {
+                for (let i in body.games) {
+                    if (body.games[i].data_text == request_json.filter.text_query) {
+                        if (i != 0) the_game = body.games[i];
+                        break;
+                    }
+                };
             };
-        };
-        message += game_description(the_game) + '\n';
-        const regrouped_odds = {};
-        const periods = new Set();
-        const events = new Set();
-        // console.log(the_game.odds)
-        for (let odd of the_game.odds) {
-            if (!regrouped_odds[odd.period]) {
-                regrouped_odds[odd.period]={};
-                periods.add(odd.period);
+            message += game_description(the_game) + '\n';
+            const regrouped_odds = {};
+            const periods = new Set();
+            const events = new Set();
+            for (let odd of the_game.odds) {
+                if (!regrouped_odds[odd.period]) {
+                    regrouped_odds[odd.period]={};
+                    periods.add(odd.period);
+                }
+                if (!regrouped_odds[odd.period][odd.event]) {
+                    regrouped_odds[odd.period][odd.event]=[];
+                    events.add(odd.event);
+                }
+                regrouped_odds[odd.period][odd.event].push({
+                    bookmaker: odd.betting_company,
+                    allowance: odd.allowance,
+                    value: odd.value,
+                    url: odd.source_url
+                });
+            };
+            the_game.odds = regrouped_odds;
+
+            message += 'Bets availible for:\n'
+            message += ' Periods: ';
+            periods.forEach(period => message+=' '+period);
+            message += '\n';
+            message += ' Events:';
+            const sorted_events = Array.from(events).sort();
+            for (let event of sorted_events) {
+                message+=' '+event;
             }
-            if (!regrouped_odds[odd.period][odd.event]) {
-                regrouped_odds[odd.period][odd.event]=[];
-                events.add(odd.event);
-            }
-            regrouped_odds[odd.period][odd.event].push({
-                bookmaker: odd.betting_company,
-                allowance: odd.allowance,
-                value: odd.value,
-                url: odd.source_url
-            });
-        };
-        console.log(regrouped_odds);
-        the_game.odds = regrouped_odds;
+            message += '\n';
+            message += 'Please, enter the period.';
 
-        message += 'Bets availible for:\n'
-        message += ' Periods: ';
-        periods.forEach(period => message+=' '+period);
-        message += '\n';
-        message += ' Events:';
-        const sorted_events = Array.from(events).sort();
-        for (let event of sorted_events) {
-            message+=' '+event;
-        }
-        message += '\n';
-        message += 'Please, enter the period.';
+            Choices_per_user[id].step = 2;
+            Choices_per_user[id].game = the_game;
+            Choices_per_user[id].periods = periods;
 
-        Choices_per_user[id].step = 2;
-        Choices_per_user[id].game = the_game;
-        Choices_per_user[id].periods = periods;
-
-        bot.sendMessage(id, message);
-    },()=>{
-        bot.sendMessage(id, 'Oops... There are some tech difficulties  :(');
-    });
+            bot.sendMessage(id, message);
+        },()=>{
+            bot.sendMessage(id, 'Oops... There are some tech difficulties  :(');
+        });
 };
 
 function chose_period (id, period) {
-    console.log('CHOSE PERIOD',period);
+    // console.log('CHOSE PERIOD',period);
     if (!Choices_per_user[id].periods.has(period.toUpperCase())) return bot.sendMessage(id,'I can\'t identify the period.\nPlease enter the right one.');
     period = period.toUpperCase();
 
@@ -249,7 +239,7 @@ function chose_period (id, period) {
 };
 
 function chose_event (id, event) {
-    console.log('CHOSE EVENT',event);
+    // console.log('CHOSE EVENT',event);
     if (!Choices_per_user[id].game.odds[Choices_per_user[id].period][event.toUpperCase()]) return bot.sendMessage(id,'I can\'t identify the event.\nPlease enter the right one.');
     event = event.toUpperCase();
 
@@ -259,7 +249,6 @@ function chose_event (id, event) {
     message += '[' + Choices_per_user[id].period + '] Period. [' + event + '] Event. (Allowance/Value)\n';
 
     for (let odd of Choices_per_user[id].game.odds[Choices_per_user[id].period][event]) {
-        console.log(JSON.stringify(odd,undefined,2));
         message += odd.bookmaker + ' (' + odd.allowance + '/' + odd.value + ') ' + odd.url + '\n';
     }
 
