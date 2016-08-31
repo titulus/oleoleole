@@ -216,8 +216,8 @@ function chose_game (id, game_num) {
             for (let event of sorted_events) {
                 message+=' '+event;
             }
-            message += '\n';
-            message += 'Please, enter the period or period with event separated by space';
+            message += '\n\n';
+            message += 'From now, you can switch between periods and their events by entering them separated by space or new line [↵]\n for example: "F"; "1/3[↵]X"; "F[↵]x[↵]F2"; "1/2 x2". Case insensitive 😉';
 
             Users_Data[id].step = 2;
             Users_Data[id].game = the_game;
