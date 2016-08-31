@@ -6,6 +6,31 @@ const request = require('request');
 const TelegramBot = require('node-telegram-bot-api');
 const bot = new TelegramBot(settings.bot_token, {polling: true});
 
+const game_description = game => {
+    let description = '';
+    const starts_at = game.starts_at;
+    const data_text = game.data_text;
+    game = JSON.parse(game.data_json); 
+    if (game.sport) {
+        switch (game.sport) {
+            case "football": description+='⚽ '; break;
+            case "basketball": description+='🏀 '; break;
+            case "hockey": description+='🏒 '; break;
+            default: description+=game.sport;
+        };
+    };
+    if (typeof(game.team1)=='undefined' || typeof(game.team2)=='undefined') {
+            description += data_text + '\n';
+        } else {
+            description += game.team1 + ' vs ' + game.team2 + '\n';
+        };
+        description += starts_at;
+        if (game.group) {
+            description += ' ' + game.group;
+        }
+    return description;
+};
+
 bot.onText(/\/games\s?(.*)/, function (msg, match) {
     console.log(msg,match);
     const request_json = {token:settings.api_token};
@@ -29,34 +54,13 @@ bot.onText(/\/games\s?(.*)/, function (msg, match) {
     }))
     .then((body)=>{
         console.log(body);
-        const game_description = game => {
-            let description = '';
-            const starts_at = game.starts_at;
-            const data_text = game.data_text;
-            game = JSON.parse(game.data_json); 
-            if (game.sport) {
-                switch (game.sport) {
-                    case "football": description+='⚽ '; break;
-                    case "basketball": description+='🏀 '; break;
-                    case "hockey": description+='🏒 '; break;
-                    default: description+=game.sport;
-                };
-            };
-            if (typeof(game.team1)=='undefined' || typeof(game.team2)=='undefined') {
-                    description += data_text + '\n';
-                } else {
-                    description += game.team1 + ' vs ' + game.team2 + '\n';
-                };
-                description += starts_at;
-                if (game.group) {
-                    description += ' ' + game.group;
-                }
-            return description;
-        };
+        
+
         let message = '';
         if (body.games.length == 0) {
             message += 'Sorry, i found no games';
         } else if (body.games.length == 1) {
+            console.log(body.games[0]);
             message += game_description(body.games[0]);
         } else if (body.games.length > 1) {
             message += 'I found several games:\n';
