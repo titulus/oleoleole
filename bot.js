@@ -58,6 +58,8 @@ const add_game2Games = (id,game) => {
     return game_id;
 };
 
+const Odds = {};
+
 bot.on('message',msg=>{console.log('MSG:',msg);});
 
 bot.onText(/\/games\s?(.*)/, function (msg, match) {
@@ -90,7 +92,7 @@ bot.onText(/\/games\s?(.*)/, function (msg, match) {
         if (body.games.length == 0) {
             message += 'Sorry, i found no games';
         } else if (body.games.length == 1) {
-            message += game_description(body.games[0]) + '\n';
+            message +=  game_description(body.games[0]) + '\n';
             message += 'bets for this game: '+'/b_'+add_game2Games(msg.chat.id,body.games[0]);
         } else if (body.games.length > 1) {
             message += 'I found several games:\n';
@@ -109,7 +111,7 @@ bot.onText(/\/games\s?(.*)/, function (msg, match) {
     });
 });
 
-bot.onText(/\/b_(\S+)/, function (msg, match) {
+bot.onText(/\/b[\s_](\S+)/, function (msg, match) {
     if (match[1]=='') return bot.sendMessage(msg.chat.id,'You should chose some game');
     if (!Games[msg.chat.id][match[1]]) return bot.sendMessage(msg.chat.id,'I can\'t identify this game.\nPlease search for games again.');
     console.log('/b_',match[1]);
@@ -121,8 +123,6 @@ bot.onText(/\/b_(\S+)/, function (msg, match) {
 
     request_promise(request_json)
     .then((body)=>{
-        console.log(body);
-        
         let the_game = body.games[0];
         let message = '';
         if (body.games.length == 0) {
@@ -134,9 +134,12 @@ bot.onText(/\/b_(\S+)/, function (msg, match) {
                     if (i != 0) the_game = body.games[i];
                     break;
                 }
-            }
+            };
         };
+        Games[msg.chat.id] = {match[1]:the_game.data_text};
+
         message += game_description(the_game) + '\n';
+        console.log(the_game.odds)
 
         bot.sendMessage(msg.chat.id, message);
     },()=>{
