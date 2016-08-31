@@ -46,19 +46,10 @@ const game_description = game => {
     return description;
 };
 
-const Games = {};
-const add_game2Games = (id,game) => {
-    const ID_LENGTH = 3;
-    const generate_game_id = () => Math.random().toString(36).slice(2,ID_LENGTH+2);
-    let game_id;
-    do {
-        game_id = generate_game_id();
-    } while (Games[id][game_id]);
-    Games[id][game_id] = game.data_text;
-    return game_id;
-};
+const Games_per_user = {};
+const add_game2Games = (id,game) => Games_per_user[id].push(game.data_text)-1;
 
-const Odds = {};
+const Game_per_user = {};
 
 bot.on('message',msg=>{console.log('MSG:',msg);});
 
@@ -86,7 +77,7 @@ bot.onText(/\/games\s?(.*)/, function (msg, match) {
     .then((body)=>{
         console.log('/games api resond:',body);
         
-        Games[msg.chat.id] = {};
+        Games_per_user[msg.chat.id] = [];
 
         let message = '';
         if (body.games.length == 0) {
@@ -105,21 +96,22 @@ bot.onText(/\/games\s?(.*)/, function (msg, match) {
 
         };
         bot.sendMessage(msg.chat.id, message);
-        console.log('GAMES',Games);
+        console.log('GAMES',Games_per_user);
     },()=>{
         bot.sendMessage(msg.chat.id, 'Oops... There are some tech difficulties  :(');
     });
 });
 
 bot.onText(/\/b[\s_](\S+)/, function (msg, match) {
-    if (match[1]=='') return bot.sendMessage(msg.chat.id,'You should chose some game');
-    if (!Games[msg.chat.id][match[1]]) return bot.sendMessage(msg.chat.id,'I can\'t identify this game.\nPlease search for games again.');
     console.log('/b_',match[1]);
+    console.log(Games_per_user[msg.chat.id])
+    if (match[1]=='') return bot.sendMessage(msg.chat.id,'You should chose some game');
+    if (!Games_per_user[msg.chat.id][+match[1]]) return bot.sendMessage(msg.chat.id,'I can\'t identify this game.\nPlease search for games again.');
 
     const request_json = {token:settings.api_token};
     request_json.select = {odds:true};
     request_json.filter = {};
-    request_json.filter.text_query = Games[msg.chat.id][match[1]];
+    request_json.filter.text_query = Games_per_user[msg.chat.id][match[1]];
 
     request_promise(request_json)
     .then((body)=>{
@@ -136,10 +128,29 @@ bot.onText(/\/b[\s_](\S+)/, function (msg, match) {
                 }
             };
         };
-        Games[msg.chat.id] = {match[1]:the_game.data_text};
-
         message += game_description(the_game) + '\n';
+
+        const regrouped_odds = {};
         console.log(the_game.odds)
+        for (let odd of the_game.odds) {
+            if (!regrouped_odds[odd.period]) regrouped_odds[odd.period]={};
+            if (!regrouped_odds[odd.period][odd.event]) regrouped_odds[odd.period][odd.event]=[];
+            regrouped_odds[odd.period][odd.event].push({
+                bookmaker: odd.betting_company,
+                allowance: odd.allowance,
+                value: odd.value
+            });
+        };
+        console.log(regrouped_odds)
+        the_game.odds = regrouped_odds;
+        Game_per_user[msg.chat.id] = the_game;
+
+        for (let period in the_game.odds) {
+            message += 'Period ' + period + ': /p_' + period.replace(/\//,'') + '\n';
+            for (let event in the_game.odds[period]) {
+                message += '    ' + event + ': /e_' + period.replace(/\//,'') + '_' + event + '\n';
+            }
+        }
 
         bot.sendMessage(msg.chat.id, message);
     },()=>{
