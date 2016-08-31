@@ -6,7 +6,7 @@ const request = require('request');
 const TelegramBot = require('node-telegram-bot-api');
 const bot = new TelegramBot(settings.bot_token, {polling: true});
 
-bot.on('message', function (msg) {
+bot.onText(/\/games (.+)/, function (msg, match) {
     (new Promise((resolve, reject)=>{
         request.post(
             settings.api_url,
