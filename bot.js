@@ -221,7 +221,6 @@ function chose_game (id, game_num) {
 
             Users_Data[id].step = 2;
             Users_Data[id].game = the_game;
-            Users_Data[id].periods = periods;
 
             bot.sendMessage(id, message);
         },()=>{
@@ -242,7 +241,11 @@ function chose_period (id, period) {
     let message = '';
 
     message += game_description(game) + '\n';
-    message += '[' + period + '] Period (Odd/Allowance)\n';
+    message += '[' + period + ' of';
+    for (let period of Object.keys(game.odds).sort()) {
+        message += ' ' + period;
+    };
+    message += '] Period (Odd/Allowance)\n';
     let sorted_events = Object.keys(game.odds[period]).sort();
     let events = new Set();
     for (let event of sorted_events) {
