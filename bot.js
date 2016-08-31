@@ -48,51 +48,60 @@ const game_description = game => {
 
 const Users_Data = {};
 
-const add_game2usergames = (id,game) => Users_Data[id].games.push(game.data_text)-1;
-
 bot.on('message',msg=>{
     console.log(new Date(),msg.chat.id+': '+msg.text);
-    if (!Users_Data[msg.chat.id]) Users_Data[msg.chat.id] = {step:0};
-
-    const match_games = msg.text.match(/^\/games\s?(.*)/);
-    if (match_games) {
-        return find_games(msg.chat.id, match_games[1]);
-    };
-    const match_d = msg.text.match(/^\/(\d+)/);
-    if ((Users_Data[msg.chat.id].step == 1 || Users_Data[msg.chat.id].step == 2)
-        && match_d) {
-        return find_bets(msg.chat.id, match_d[1]);
-    };
+    const id = msg.chat.id;
+    if (!Users_Data[id]) Users_Data[id] = {step:0};
 
     const default_message = 'please type /games for games search.\nAdd team name, to narrow your search.\nAdd +X and -X for game start time limit in hours.\nExamples:\n  /games - to find nearest.\n  /games FC -2 - games started in last 2 hours, with teams "FC" named like "Saint Louis FC"';
-    switch (Users_Data[msg.chat.id].step) {
+
+    if (msg.text.match(/^\/start/)) {
+        bot.sendMessage(id, default_message);
+    }
+    const match_games = msg.text.match(/^\/games\s?(.*)/);
+    if (match_games) {
+        return find_games(id, match_games[1]);
+    };
+    const match_d = msg.text.match(/^\/(\d+)/);
+    if ((Users_Data[id].step == 1 || Users_Data[id].step == 2)
+        && match_d) {
+        return find_bets(id, match_d[1]);
+    };
+
+    switch (Users_Data[id].step) {
         case 0: {
-            bot.sendMessage(msg.chat.id, default_message);
+            bot.sendMessage(id, default_message);
         }; break;
         case 1: {
-            return find_bets(msg.chat.id, msg.text);
+            return find_bets(id, msg.text);
         }; break;
         case 2: {
-            if (Users_Data[msg.chat.id].games[msg.text]) {
-                return find_bets(msg.chat.id, msg.text);
-            }
+            if (Users_Data[id].games[msg.text]) {
+                return find_bets(id, msg.text);
+            };
             const commands = msg.text.split(' ');
             if (commands.length == 1) {
-                return chose_period(msg.chat.id, msg.text);
-            }
+                return chose_period(id, msg.text);
+            };
+            const period = commands[0].toUpperCase();
+            if (!Users_Data[id].periods.has(period)) return bot.sendMessage(id,'I can\'t identify the period.\nPlease enter the right one.');
+            Users_Data[id].period = period;
+            return chose_event(id, commands[1]);
         }; break;
         case 3: {
-            if (Users_Data[msg.chat.id].periods.has(msg.text.toUpperCase())) {
-                return chose_period(msg.chat.id, msg.text);
-            }
-            return chose_event(msg.chat.id, msg.text);
-        }
-        case 4: {
-            if (Users_Data[msg.chat.id].events.has(msg.text.toUpperCase())) {
-                return chose_event(msg.chat.id, msg.text);
-            }
-        }
-        default: bot.sendMessage(msg.chat.id, default_message);
+            const commands = msg.text.split(' ');
+            if (commands.length == 1) {
+                if (Users_Data[id].periods.has(msg.text.toUpperCase())) {
+                    return chose_period(id, msg.text);
+                };
+                return chose_event(id, msg.text);
+            };
+            const period = commands[0].toUpperCase();
+            if (!Users_Data[id].periods.has(period)) return bot.sendMessage(id,'I can\'t identify the period.\nPlease enter the right one.');
+            Users_Data[id].period = period;
+            return chose_event(id, commands[1]);
+        }; break;
+        default: bot.sendMessage(id, default_message);
     };    
 });
 
@@ -125,14 +134,17 @@ function find_games (id, query) {
             if (body.games.length > 1) {
                 message += 'I found several games:\n';
             }
-
+            const games = [];
             for (let game of body.games) {
-                message += '/' + add_game2usergames(id,game) + ' ' + game_description(game) + '\n\n';
+                message += '/' + (games.push(game.data_text)-1) + ' ' + game_description(game) + '\n\n';
             }
             message += 'Please enter the game number or click on it.';
 
-            Users_Data[id].step = 1;
-            Users_Data[id].query = request_json.filter.text_query;
+            Users_Data[id] = {
+                step: 1,
+                query: request_json.filter.text_query,
+                games: games
+            };
 
             bot.sendMessage(id, message);
         },()=>{
@@ -252,7 +264,7 @@ function chose_event (id, event) {
         message += odd.bookmaker + ' (' + odd_to_string(odd) + ') ' + odd.url + '\n';
     }
 
-    Users_Data[id].step = 4;
+    Users_Data[id].step = 3;
     Users_Data[id].event = event;
 
     bot.sendMessage(id, message);
