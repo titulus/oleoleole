@@ -209,6 +209,8 @@ function find_bets (id, game_num) {
         });
 };
 
+const odd_to_string = odd =>  ((odd.value>2)?((odd.value>5)?'💰':'💵'):'') + odd.value + '/' + odd.allowance;
+
 function chose_period (id, period) {
     // console.log('CHOSE PERIOD',period);
     if (!Users_Data[id].periods.has(period.toUpperCase())) return bot.sendMessage(id,'I can\'t identify the period.\nPlease enter the right one.');
@@ -217,14 +219,14 @@ function chose_period (id, period) {
     let message = '';
 
     message += game_description(Users_Data[id].game) + '\n';
-    message += '[' + period + '] Period (Allowance/Value)\n';
+    message += '[' + period + '] Period (Odd/Allowance)\n';
     let sorted_events = Object.keys(Users_Data[id].game.odds[period]).sort();
     let events = new Set();
     for (let event of sorted_events) {
         events.add(event);
         message += event + ':';
         for (let odd of Users_Data[id].game.odds[period][event]) {
-            message += ' (' + odd.allowance + '/' + odd.value + ')';
+            message += ' (' + odd_to_string(odd) + ')';
         };
         message += '\n';
     };
@@ -244,10 +246,10 @@ function chose_event (id, event) {
     let message = '';
 
     message += game_description(Users_Data[id].game) + '\n';
-    message += '[' + Users_Data[id].period + '] Period. [' + event + '] Event. (Allowance/Value)\n';
+    message += '[' + Users_Data[id].period + '] Period. [' + event + '] Event. (Odd/Allowance)\n';
 
     for (let odd of Users_Data[id].game.odds[Users_Data[id].period][event]) {
-        message += odd.bookmaker + ' (' + odd.allowance + '/' + odd.value + ') ' + odd.url + '\n';
+        message += odd.bookmaker + ' (' + odd_to_string(odd) + ') ' + odd.url + '\n';
     }
 
     Users_Data[id].step = 4;
