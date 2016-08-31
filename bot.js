@@ -9,12 +9,11 @@ const bot = new TelegramBot(settings.bot_token, {polling: true});
 bot.onText(/\/games\s?(.*)/, function (msg, match) {
     console.log(msg,match);
     const request_json = {token:settings.api_token};
-    request_json.select = {odds:true};
+    request_json.select = {odds:(match[1])?true:false};
     request_json.filter = {};
     if (match[1]) request_json.filter.text_query = match[1];
     request_json.filter.next_period = 6;
-    request_json.filter.prev_period = 4;  
-    console.log(request_json);
+    request_json.filter.prev_period = 4;
 
     (new Promise((resolve, reject)=>{
         request.post(
@@ -29,23 +28,47 @@ bot.onText(/\/games\s?(.*)/, function (msg, match) {
         );
     }))
     .then((body)=>{
-        console.log(body,body.games[0]);
+        console.log(body);
+        const game_description = game => {
+            let description = '';
+            const starts_at = game.starts_at;
+            const data_text = game.data_text;
+            game = JSON.parse(game.data_json); 
+            if (game.sport) {
+                switch (game.sport) {
+                    case "football": description+='⚽ '; break;
+                    case "basketball": description+='🏀 '; break;
+                    case "hockey": description+='🏒 '; break;
+                    default: description+=game.sport;
+                };
+            };
+            if (typeof(game.team1)=='undefined' || typeof(game.team2)=='undefined') {
+                    description += data_text + '\n';
+                } else {
+                    description += game.team1 + ' vs ' + game.team2 + '\n';
+                };
+                description += starts_at;
+                if (game.group) {
+                    description += ' ' + game.group;
+                }
+            return description;
+        };
         let message = '';
-        if (body.games.length>1) {
+        if (body.games.length == 0) {
+            message += 'Sorry, i found no games';
+        } else if (body.games.length == 1) {
+            message += game_description(body.games[0]);
+        } else if (body.games.length > 1) {
             message += 'I found several games:\n';
 
             for (let game of body.games) {
-                let starts_at = game.starts_at;
-                game = JSON.parse(game.data_json);
-                message += game.team1 + ' vs ' + game.team2 + '\n';
-                message += starts_at + ' ' + game.group;
-                message += '\n\n';
+                message += game_description(game) + '\n\n';
             }
             message += 'Please refine your query';
 
-            bot.sendMessage(msg.chat.id, message);
-        }
+        };
+        bot.sendMessage(msg.chat.id, message);
     },()=>{
-        bot.sendMessage(msg.chat.id, 'Sorry :(');
+        bot.sendMessage(msg.chat.id, 'Oops... There are some tech difficulties  :(');
     });
 });
