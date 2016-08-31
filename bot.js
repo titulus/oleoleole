@@ -7,18 +7,22 @@ const TelegramBot = require('node-telegram-bot-api');
 const bot = new TelegramBot(settings.bot_token, {polling: true});
 
 bot.on('message', function (msg) {
-    console.log(msg);
-    var fromId = msg.chat.id;
-    bot.sendMessage(fromId, 'asd');
-});
-
-request.post(
-    settings.api_url,
-    { json: { token: settings.api_token } },
-    function (error, response, body) {
+    (new Promise((resolve, reject)=>{
+        request.post(
+            settings.api_url,
+            { json: { token: settings.api_token } },
+            function (error, response, body) {
+                if (!error && response.statusCode == 200) {
+                    return resolve(body);
+                }
+                return reject();
+            }
+        );
+    }))
+    .then((body)=>{
         console.log(body);
-        // if (!error && response.statusCode == 200) {
-        //     console.log(body)
-        // }
-    }
-);
+        bot.sendMessage(msg.chat.id, JSON.stringify(body, undefined, 4));
+    },()=>{
+        bot.sendMessage(msg.chat.id, 'Sorry :(');
+    });
+});
