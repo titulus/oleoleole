@@ -53,7 +53,14 @@ bot.on('message',msg=>{
     const id = msg.chat.id;
     if (!Users_Data[id]) {
         Users_Data[id] = {step:0};
-    }
+    } else {
+        clearTimeout(Users_Data[id].countdown);
+    };
+    Users_Data[id].countdown = setTimeout(function () {
+        console.log('User '+id+' left');
+        delete Users_Data[id];
+        bot.sendMessage(id, '🕝 Too much time left. You need to search again to get actual data. Please, use /games again'); // I don't really know... are those kind of messages acceptable by Telegram rules?
+    }, 10000)
 
     const default_message = 'please type /games for games search.\nAdd team name, to narrow your search.\nAdd +X and -X for game start time limit in hours.\nExamples:\n  /games - to find nearest.\n  /games FC -2 - games started in last 2 hours, with teams "FC" named like "Saint Louis FC"';
 
@@ -148,11 +155,9 @@ function find_games (id, query) {
             }
             message += 'Please enter the game number or click on it.';
 
-            Users_Data[id] = {
-                step: 1,
-                query: request_json.filter.text_query,
-                games: games
-            };
+            Users_Data[id].step = 1;
+            Users_Data[id].query = request_json.filter.text_query;
+            Users_Data[id].games = games;
 
             bot.sendMessage(id, message);
         },()=>{
