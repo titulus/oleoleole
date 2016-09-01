@@ -4,7 +4,7 @@ const settings = require('./settings.json');
 
 const request = require('request');
 const TelegramBot = require('node-telegram-bot-api');
-const bot = new TelegramBot(settings.bot_token, {polling: true});
+const bot = new TelegramBot(settings.bot_token, {polling: {timeout: 10, interval: 2000}});
 
 const request_promise = json => {
     return new Promise((resolve, reject)=>{
