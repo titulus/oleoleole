@@ -60,7 +60,7 @@ bot.on('message',msg=>{
         console.log('User '+id+' left');
         delete Users_Data[id];
         bot.sendMessage(id, '🕝 Too much time left. You need to search again to get actual data. Please, use /games again'); // I don't really know... are those kind of messages acceptable by Telegram rules?
-    }, 10000)
+    }, settings.clear_interval)
 
     const default_message = 'please type /games for games search.\nAdd team name, to narrow your search.\nAdd +X and -X for game start time limit in hours.\nExamples:\n  /games - to find nearest.\n  /games FC -2 - games started in last 2 hours, with teams "FC" named like "Saint Louis FC"';
 
